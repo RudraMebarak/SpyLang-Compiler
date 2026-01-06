@@ -24,6 +24,7 @@ enum TokenType {
     TOKEN_LT,
     TOKEN_GT,
 
+    TOKEN_COMMA,
     TOKEN_LPAREN,
     TOKEN_RPAREN,
     TOKEN_LBRACE,

@@ -1,7 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include "lexer.h"
+#include "lexer/lexer.h"
 
 std::string readFile(const std::string& filename) {
     std::ifstream file(filename);
@@ -26,7 +26,7 @@ int main() {
                   << ", col " << token.column
                   << ")\n";
 
-        if (token.type == TokenType::END_OF_FILE)
+        if (token.type == TokenType::TOKEN_EOF)
             break;
     }
 
