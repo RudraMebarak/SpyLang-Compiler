@@ -1,174 +1,197 @@
 #include "lexer.h"
 #include <cctype>
 #include <unordered_map>
-#include <iostream>
 
-// ---------- Keyword map ----------
-static std::unordered_map<std::string, TokenType> keywords = {
-    {"exhibit_int", TOKEN_INT},
-    {"exhibit_float", TOKEN_FLOAT},
-    {"exhibit_char", TOKEN_CHAR},
-    {"suspect", TOKEN_IF},
-    {"otherwise", TOKEN_ELSE},
-    {"loop", TOKEN_WHILE},
-    {"show", TOKEN_PRINT}
+// --------------------------------------------------
+// Keyword table (lexeme → token type)
+// --------------------------------------------------
+static const std::unordered_map<std::string, TokenType> keywords = {
+    {"num", TokenType::NUM},
+    {"suspect", TokenType::SUSPECT},
+    {"otherwise", TokenType::OTHERWISE},
+    {"loop", TokenType::LOOP},
+    {"show", TokenType::SHOW}
 };
 
-// ---------- Constructor ----------
-Lexer::Lexer(const std::string& source)
-    : src(source), pos(0), currentChar(0)
+// --------------------------------------------------
+// Constructor
+// --------------------------------------------------
+Lexer::Lexer(const std::string& src)
+    : source(src),
+      position(0),
+      currentChar('\0'),
+      line(1),
+      column(0)
 {
-    currentChar = src[pos];
+    if (!source.empty()) {
+        currentChar = source[position];
+    }
 }
 
-// ---------- Helper: advance one character ----------
+// --------------------------------------------------
+// Advance one character
+// --------------------------------------------------
 void Lexer::advance() {
-    pos++;
-    if (pos < src.length())
-        currentChar = src[pos];
-    else
+    if (currentChar == '\n') {
+        line++;
+        column = 0;
+    } else {
+        column++;
+    }
+
+    position++;
+
+    if (position < source.size()) {
+        currentChar = source[position];
+    } else {
         currentChar = '\0'; // EOF marker
+    }
 }
 
-// ---------- Helper: lookahead ----------
+// --------------------------------------------------
+// Lookahead without consuming
+// --------------------------------------------------
 char Lexer::peek() const {
-    if (pos + 1 < src.length())
-        return src[pos + 1];
+    if (position + 1 < source.size()) {
+        return source[position + 1];
+    }
     return '\0';
 }
 
-// ---------- Helper: skip whitespace ----------
+// --------------------------------------------------
+// Skip whitespace
+// --------------------------------------------------
 void Lexer::skipWhitespace() {
     while (currentChar != '\0' && std::isspace(currentChar)) {
         advance();
     }
 }
 
-// ---------- Read identifier or keyword ----------
-Token Lexer::identifier() {
-    std::string value;
+// --------------------------------------------------
+// Read identifier or keyword
+// --------------------------------------------------
+Token Lexer::readIdentifierOrKeyword() {
+    int startColumn = column;
+    std::string lexeme;
 
     while (std::isalnum(currentChar) || currentChar == '_') {
-        value.push_back(currentChar);
+        lexeme.push_back(currentChar);
         advance();
     }
 
-    // Check if keyword
-    if (keywords.count(value)) {
-        return {keywords[value], value};
+    auto it = keywords.find(lexeme);
+    if (it != keywords.end()) {
+        return {it->second, lexeme, line, startColumn};
     }
 
-    return {TOKEN_ID, value};
+    return {TokenType::IDENTIFIER, lexeme, line, startColumn};
 }
 
-// ---------- Read number ----------
-Token Lexer::number() {
-    std::string value;
+// --------------------------------------------------
+// Read number literal
+// --------------------------------------------------
+Token Lexer::readNumber() {
+    int startColumn = column;
+    std::string lexeme;
 
     while (std::isdigit(currentChar)) {
-        value.push_back(currentChar);
+        lexeme.push_back(currentChar);
         advance();
     }
 
-    return {TOKEN_NUMBER, value};
+    return {TokenType::NUMBER, lexeme, line, startColumn};
 }
 
-// ---------- Read string literal ----------
-Token Lexer::stringLiteral() {
-    std::string value;
+// --------------------------------------------------
+// Read string literal (preserves spaces)
+// --------------------------------------------------
+Token Lexer::readString() {
+    int startColumn = column;
+    std::string lexeme;
 
-    advance(); // skip opening quote "
+    advance(); // skip opening "
 
     while (currentChar != '\0' && currentChar != '"') {
-        value.push_back(currentChar);
+        lexeme.push_back(currentChar);
         advance();
     }
 
     if (currentChar == '\0') {
-        return {TOKEN_INVALID, "Unterminated string"};
+        return {TokenType::INVALID, "Unterminated string", line, startColumn};
     }
 
-    advance(); // skip closing quote "
-    return {TOKEN_STRING, value};
+    advance(); // skip closing "
+
+    return {TokenType::STRING, lexeme, line, startColumn};
 }
 
-// ---------- Main lexer function ----------
+// --------------------------------------------------
+// Read operators and delimiters
+// --------------------------------------------------
+Token Lexer::readOperatorOrDelimiter() {
+    int startColumn = column;
+    char ch = currentChar;
+
+    switch (ch) {
+        case '+': advance(); return {TokenType::PLUS, "+", line, startColumn};
+        case '-': advance(); return {TokenType::MINUS, "-", line, startColumn};
+        case '*': advance(); return {TokenType::MUL, "*", line, startColumn};
+        case '/': advance(); return {TokenType::DIV, "/", line, startColumn};
+
+        case '=':
+            if (peek() == '=') {
+                advance(); advance();
+                return {TokenType::EQ, "==", line, startColumn};
+            }
+            advance();
+            return {TokenType::ASSIGN, "=", line, startColumn};
+
+        case '<': advance(); return {TokenType::LT, "<", line, startColumn};
+        case '>': advance(); return {TokenType::GT, ">", line, startColumn};
+
+        case '(':
+            advance(); return {TokenType::LPAREN, "(", line, startColumn};
+        case ')':
+            advance(); return {TokenType::RPAREN, ")", line, startColumn};
+        case '{':
+            advance(); return {TokenType::LBRACE, "{", line, startColumn};
+        case '}':
+            advance(); return {TokenType::RBRACE, "}", line, startColumn};
+        case ';':
+            advance(); return {TokenType::SEMICOLON, ";", line, startColumn};
+
+        default:
+            advance();
+            return {TokenType::INVALID, std::string(1, ch), line, startColumn};
+    }
+}
+
+// --------------------------------------------------
+// Main lexer entry point
+// --------------------------------------------------
 Token Lexer::getNextToken() {
 
     while (currentChar != '\0') {
 
-        // Ignore whitespace
         if (std::isspace(currentChar)) {
             skipWhitespace();
             continue;
         }
 
-        // Identifier or keyword
         if (std::isalpha(currentChar) || currentChar == '_') {
-            return identifier();
+            return readIdentifierOrKeyword();
         }
 
-        // Number
         if (std::isdigit(currentChar)) {
-            return number();
+            return readNumber();
         }
 
-        // String literal
         if (currentChar == '"') {
-            return stringLiteral();
+            return readString();
         }
 
-        // Operators & symbols
-        switch (currentChar) {
-
-            case '+': advance(); return {TOKEN_PLUS, "+"};
-            case '-': advance(); return {TOKEN_MINUS, "-"};
-            case '*': advance(); return {TOKEN_MUL, "*"};
-            case '/': advance(); return {TOKEN_DIV, "/"};
-
-            case '=':
-                if (peek() == '=') {
-                    advance(); advance();
-                    return {TOKEN_EQ, "=="};
-                }
-                advance();
-                return {TOKEN_ASSIGN, "="};
-
-            case '<':
-                advance();
-                return {TOKEN_LT, "<"};
-
-            case '>':
-                advance();
-                return {TOKEN_GT, ">"};
-
-            case '(':
-                advance();
-                return {TOKEN_LPAREN, "("};
-
-            case ')':
-                advance();
-                return {TOKEN_RPAREN, ")"};
-
-            case '{':
-                advance();
-                return {TOKEN_LBRACE, "{"};
-
-            case '}':
-                advance();
-                return {TOKEN_RBRACE, "}"};
-
-            case ';':
-                advance();
-                return {TOKEN_SEMI, ";"};
-
-            default: {
-                char bad = currentChar;
-                advance();
-                return {TOKEN_INVALID, std::string(1, bad)};
-            }
-        }
+        return readOperatorOrDelimiter();
     }
 
-    return {TOKEN_EOF, ""};
+    return {TokenType::END_OF_FILE, "", line, column};
 }
