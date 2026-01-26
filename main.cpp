@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include "lexer/lexer.h"
+#include "parser/parser.h"
 
 std::string readFile(const std::string& filename) {
     std::ifstream file(filename);
@@ -14,21 +15,10 @@ int main() {
 
     std::string source = readFile("input/test.dl");
 
-    Lexer lexer(source);
+    std::cout << "Starting parser...\n";
 
-    while (true) {
-        Token token = lexer.getNextToken();
+    parse(source);   // entry function you chose earlier
 
-        std::cout << "Token("
-                  << static_cast<int>(token.type) << ", \""
-                  << token.lexeme << "\""
-                  << ", line " << token.line
-                  << ", col " << token.column
-                  << ")\n";
-
-        if (token.type == TokenType::TOKEN_EOF)
-            break;
-    }
-
+    std::cout << "Parsing completed successfully.\n";
     return 0;
 }

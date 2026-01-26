@@ -1,3 +1,14 @@
+#ifndef PARSER_H
+#define PARSER_H
+
+#include <string>
+#include "../lexer/lexer.h"
+
+// global parser state
+extern Lexer* lexer;
+extern Token currentToken;
+
+void parse(const std::string& source);
 void parseProgram();
 
 void parseStatementList();
@@ -26,3 +37,5 @@ void parseTermt();
 
 void parseCondition();
 void parseRelOp();
+
+#endif
